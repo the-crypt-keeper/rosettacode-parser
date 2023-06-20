@@ -77,15 +77,15 @@ def clean_solution(text):
 
 
 min_solution_len = 60
+lang_whitelist = ['Python','C','C++','JavaScript']
 
-def language_whitelist(language):
-    lang_whitelist = ['Python','C','C++','JavaScript']
+def language_lookup(language):
     if language in lang_whitelist:
-        return True
+        return language
     for lang in lang_whitelist:
         if language.startswith(lang) and lang != 'C':
-            return True
-    return False
+            return lang
+    return None
 
 def parse_rosettacode(content):
     task = ''
@@ -100,7 +100,7 @@ def parse_rosettacode(content):
         elif '{{header' in line:
             language = line[11:line.find('}}')]
             header_lang = language
-            if language_whitelist(language):
+            if language_lookup(language) is not None:
                 state = 2
                 sections[language] = ''
             else:
@@ -114,7 +114,7 @@ def parse_rosettacode(content):
                 print('WARNING: unrecognized works_with', line)
             else:
                 language = works_with[1]+' '+works_with[2] if len(works_with) == 3 else works_with[1]
-                if language_whitelist(language):
+                if language_lookup(language) is not None:
                     state = 2
                     sections[language] = ''
                 else:
@@ -122,7 +122,7 @@ def parse_rosettacode(content):
         elif line.startswith('{{trans') or line.startswith('{{Trans'):
             trans = line[line.find('{{')+2:line.find('}}')].split('|')
             language = header_lang+' from '+trans[1]
-            if language_whitelist(language):
+            if language_lookup(language) is not None:
                 sections[language] = ''
                 state = 2
             else:
@@ -155,7 +155,7 @@ def parse_rosettacode(content):
     return output
 
 INFILE = 'rosettacode-2023-06-17.jsonl'
-OUTFILE = 'solutions-2023-06-17.jsonl'
+OUTFILE = 'solutions-{language}-2023-06-17.jsonl'
 
 total = 0
 skip = 0
@@ -163,8 +163,14 @@ done = 0
 failed = 0
 rows = 0
 
-of = open(OUTFILE, 'w')
-langs = []
+of = {}
+for lang in lang_whitelist:
+    of[lang] = {
+        'fh': open(OUTFILE.format(language=lang), 'w'),
+        'langs': [],
+        'problems': [],
+        'rows': 0
+    }
 
 with open(INFILE) as f:
     line = f.readline()
@@ -181,17 +187,22 @@ with open(INFILE) as f:
                 print('WARNING: Failed to parse task', data['title'])
                 failed += 1
             else:
+
                 for language in parsed['solutions'].keys():
-                    if not language in langs:
-                        langs.append(language)
+                    entry = of[language_lookup(language)]
+                    entry['langs'].append(language)
+                    if not data['title'] in entry['problems']:
+                        entry['problems'].append(data['title'])
+
                     row = {
                         'title': data['title'],
                         'language': language,
                         'task': parsed['task'],
                         'solution': parsed['solutions'][language]
                     }
-                    of.write(json.dumps(row)+'\n')
+                    entry['fh'].write(json.dumps(row)+'\n')
                     rows += 1
+                    entry['rows'] += 1
                 
                 done += 1
 
@@ -199,7 +210,8 @@ with open(INFILE) as f:
         if total % 100 == 0:
             print('Total',total,'done',done,'skip',skip,'failed',failed)
 
-of.close()
-print('Total',total,'done',done,'skip',skip,'failed',failed)
-print('Languages', langs)
-print('Rows', rows)
+for lang in of.keys():
+    of[lang]['fh'].close()
+    print('Language', lang, 'problems', len(of[lang]['problems']), 'rows', of[lang]['rows'])
+
+print('Total',total,'done',done,'skip',skip,'failed',failed,'rows',rows)
