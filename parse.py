@@ -77,14 +77,22 @@ def clean_solution(text):
 
 
 min_solution_len = 60
-lang_whitelist = ['Python','C','C++','JavaScript']
+lang_whitelist = ['Python','C','C++','C sharp','Go','JavaScript','Java','Lua','Kotlin','Ruby']
 
 def language_lookup(language):
     if language in lang_whitelist:
         return language
     for lang in lang_whitelist:
-        if language.startswith(lang) and lang != 'C':
-            return lang
+        if language.lower().startswith(lang.lower()):
+            if lang == 'Go':
+                if language.startswith('Go!') or language.startswith('Go from') :
+                    return lang
+            elif lang != 'C':
+                return lang
+        if lang == 'C sharp':
+            if language.startswith('C#') or language.startswith('.NET'):
+                return lang
+    #print('WHITELISTED REJECTED', language)
     return None
 
 def parse_rosettacode(content):
@@ -166,7 +174,7 @@ rows = 0
 of = {}
 for lang in lang_whitelist:
     of[lang] = {
-        'fh': open(OUTFILE.format(language=lang), 'w'),
+        'fh': open(OUTFILE.format(language=lang.replace(' ','-')), 'w'),
         'langs': [],
         'problems': [],
         'rows': 0
@@ -190,7 +198,8 @@ with open(INFILE) as f:
 
                 for language in parsed['solutions'].keys():
                     entry = of[language_lookup(language)]
-                    entry['langs'].append(language)
+                    if not language in entry['langs']:
+                        entry['langs'].append(language)
                     if not data['title'] in entry['problems']:
                         entry['problems'].append(data['title'])
 
@@ -212,6 +221,8 @@ with open(INFILE) as f:
 
 for lang in of.keys():
     of[lang]['fh'].close()
-    print('Language', lang, 'problems', len(of[lang]['problems']), 'rows', of[lang]['rows'])
+    print('Language', lang, 'problems', len(of[lang]['problems']), 'rows', of[lang]['rows'], 'merged languages:')
+    for lang in of[lang]['langs']:
+        print('   '+lang)
 
 print('Total',total,'done',done,'skip',skip,'failed',failed,'rows',rows)
